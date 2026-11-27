@@ -280,7 +280,7 @@ async def main():
             if access_map.get(command_id, meta[2]) != 6
             and rank >= access_map.get(command_id, meta[2])
         ]
-        if not available:
+        if not available and rank != 5:
             await message.reply("У тебя пока нет доступных игровых команд.")
             return
 
