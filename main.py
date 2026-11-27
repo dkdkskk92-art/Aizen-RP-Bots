@@ -289,6 +289,8 @@ async def main():
             f"<code>{command_id}</code> — {title}"
             for command_id, title in available
         )
+        if rank == 5:
+            lines.append("<code>дк</code> — настройка доступов игровых команд")
         await message.reply("\n".join(lines), parse_mode="HTML")
 
     @dispatcher.message(F.text.regexp(r"(?is)^покормить(?:\s|$)"))
