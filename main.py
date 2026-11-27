@@ -245,6 +245,8 @@ async def main():
 
     @dispatcher.message(F.text.regexp(r"(?i)^профиль(?:\s+\d+)?\s*$"))
     async def profile_handler(message: Message):
+        if not message.from_user or message.from_user.is_bot:
+            return
         parts = (message.text or "").split()
         async with Session() as session:
             if len(parts) > 1:
@@ -274,6 +276,7 @@ async def main():
     async def start_handler(message: Message):
         await message.answer(
             "Привет! Я игровой бот Айзена.\n"
+            "Команда «профиль» — посмотреть свой профиль.\n"
             "Команда «покормить» — покормить участника.\n"
             "Команда «мдк» — посмотреть доступные игровые команды."
         )
