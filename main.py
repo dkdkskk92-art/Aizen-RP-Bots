@@ -206,7 +206,7 @@ async def main():
             for command_id, meta in RP_COMMANDS.items()
         ]
         await session.execute(
-            pg_insert(CommandAccess).values(defaults).on_conflict_do_nothing(index_elements=["command_id"])
+            pg_insert(GameCommandAccess).values(defaults).on_conflict_do_nothing(index_elements=["command_id"])
         )
         await session.commit()
 
