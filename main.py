@@ -45,15 +45,13 @@ class RegistrationMiddleware(BaseMiddleware):
                         username=actor.username,
                         first_name=actor.first_name or "",
                         last_name=actor.last_name,
-                        rank=5 if settings.owner_telegram_id and actor.id == settings.owner_telegram_id else 0,
+                        rank=0,
                     )
                     session.add(user)
                 else:
                     user.username = actor.username
                     user.first_name = actor.first_name or ""
                     user.last_name = actor.last_name
-                    if settings.owner_telegram_id and actor.id == settings.owner_telegram_id:
-                        user.rank = 5
                 await session.commit()
         return await handler(event, data)
 
