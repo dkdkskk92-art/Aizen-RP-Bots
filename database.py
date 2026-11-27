@@ -36,8 +36,8 @@ class User(Base):
     avatar_type: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
 
-class CommandAccess(Base):
-    __tablename__ = "command_access"
+class GameCommandAccess(Base):
+    __tablename__ = "game_command_access"
 
     command_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     min_rank: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
