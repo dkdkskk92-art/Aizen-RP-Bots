@@ -9,7 +9,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from config import settings
-from database import Base, CommandAccess, Session, User, engine
+from database import Base, GameCommandAccess, Session, User, engine
 
 
 RP_COMMANDS = {
@@ -21,8 +21,8 @@ def utf16_length(value: str) -> int:
     return len(value.encode("utf-16-le")) // 2
 
 
-def profile_url(user: User) -> str:
-    return f"https://t.me/{user.username}" if user.username else f"tg://user?id={user.telegram_id}"
+def profile_url(user: User) -> str | None:
+    return f"https://t.me/{user.username}" if user.username else None
 
 
 def display_name(user: User) -> str:
@@ -75,7 +75,7 @@ class CommandAccessMiddleware(BaseMiddleware):
         async with Session() as session:
             user = await get_user(session, event.from_user.id)
             rank = user.rank if user else 0
-            setting = await session.get(CommandAccess, command_id)
+            setting = await session.get(GameCommandAccess, command_id)
             min_rank = setting.min_rank if setting else RP_COMMANDS[command_id][2]
 
         if min_rank == 6 or rank < min_rank:
@@ -151,20 +151,21 @@ async def send_rp_action(message: Message, emoji: str, verb: str):
 
     main_text = f"{emoji} | {actor_name} {verb} {target_name}"
     output = main_text + (f"\nТекст: {extra}" if extra else "")
-    entities = [
-        MessageEntity(
+    entities = []
+    if actor_url:
+        entities.append(MessageEntity(
             type="text_link",
             offset=utf16_length(f"{emoji} | "),
             length=utf16_length(actor_name),
             url=actor_url,
-        ),
-        MessageEntity(
+        ))
+    if target_url:
+        entities.append(MessageEntity(
             type="text_link",
             offset=utf16_length(f"{emoji} | {actor_name} {verb} "),
             length=utf16_length(target_name),
             url=target_url,
-        ),
-    ]
+        ))
 
     if extra:
         leading = len(extra_raw) - len(extra_raw.lstrip())
@@ -219,7 +220,7 @@ async def main():
         async with Session() as session:
             actor = await get_user(session, message.from_user.id)
             rank = actor.rank if actor else 0
-            rows = (await session.scalars(select(CommandAccess))).all()
+            rows = (await session.scalars(select(GameCommandAccess))).all()
             access_map = {row.command_id: row.min_rank for row in rows}
 
         available = [
