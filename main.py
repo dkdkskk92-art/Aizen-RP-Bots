@@ -1,5 +1,6 @@
 import asyncio
 import logging
+from html import escape
 
 from aiogram import BaseMiddleware, Bot, Dispatcher, F
 from aiogram.exceptions import TelegramBadRequest
@@ -105,8 +106,9 @@ async def resolve_target(message: Message, session, raw: str):
             select(User).where(func.lower(User.username) == token[1:].lower())
         )
     if token.isdigit():
-        user = await session.get(User, int(token))
-        return user or await get_user(session, int(token))
+        # В командах принимается только кастомный ID (users.id).
+        # Telegram ID нужен только для сопоставления входящего Telegram update.
+        return await session.get(User, int(token))
     return None
 
 
@@ -240,6 +242,33 @@ async def main():
     @dispatcher.message(F.text.regexp(r"(?is)^покормить(?:\s|$)"))
     async def feed_handler(message: Message):
         await send_rp_action(message, "🍓", "покормил")
+
+    @dispatcher.message(F.text.regexp(r"(?i)^профиль(?:\s+\d+)?\s*$"))
+    async def profile_handler(message: Message):
+        parts = (message.text or "").split()
+        async with Session() as session:
+            if len(parts) > 1:
+                actor = await session.get(User, int(parts[1]))
+                if actor is None:
+                    await message.reply("Пользователь с таким кастомным ID не найден.")
+                    return
+            else:
+                actor = await get_user(session, message.from_user.id)
+
+            if actor is None:
+                await message.reply("Профиль не найден. Напиши боту ещё раз, чтобы пройти регистрацию.")
+                return
+
+            name = escape(display_name(actor))
+            username = f"@{escape(actor.username)}" if actor.username else "не указан"
+            await message.reply(
+                "👤 <b>Профиль игрока</b>\n"
+                f"🆔 Кастомный ID: <code>{actor.id}</code>\n"
+                f"Имя: {name}\n"
+                f"Username: {username}\n"
+                f"Ранг: {actor.rank}",
+                parse_mode="HTML",
+            )
 
     @dispatcher.message(F.text.regexp(r"(?i)^/start(?:\s|$)"))
     async def start_handler(message: Message):
