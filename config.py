@@ -9,7 +9,6 @@ load_dotenv()
 class Settings:
     bot_token: str = os.getenv("BOT_TOKEN", "")
     database_url: str = os.getenv("DATABASE_URL", "")
-    owner_telegram_id: int = int(os.getenv("OWNER_TELEGRAM_ID", "0"))
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
 
 
