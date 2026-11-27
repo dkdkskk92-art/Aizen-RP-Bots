@@ -12,8 +12,9 @@ from config import settings
 from database import Base, GameCommandAccess, Session, User, engine
 
 
-RP_COMMANDS = {
+GAME_COMMANDS = {
     101: ("Покормить", "покормить", 0, "🍓", "покормил"),
+    102: ("Профиль", "профиль", 0, "👤", "посмотрел профиль"),
 }
 
 
@@ -63,7 +64,7 @@ class CommandAccessMiddleware(BaseMiddleware):
 
         first_line = event.text.splitlines()[0].strip().lower()
         command_id = None
-        for candidate_id, (_, trigger, _, _, _) in RP_COMMANDS.items():
+        for candidate_id, (_, trigger, _, _, _) in GAME_COMMANDS.items():
             if first_line == trigger or first_line.startswith(trigger + " "):
                 command_id = candidate_id
                 break
@@ -74,7 +75,7 @@ class CommandAccessMiddleware(BaseMiddleware):
             user = await get_user(session, event.from_user.id)
             rank = user.rank if user else 0
             setting = await session.get(GameCommandAccess, command_id)
-            min_rank = setting.min_rank if setting else RP_COMMANDS[command_id][2]
+            min_rank = setting.min_rank if setting else GAME_COMMANDS[command_id][2]
 
         if min_rank == 6 or rank < min_rank:
             await event.reply("⛔ У тебя нет доступа к этой игровой команде.")
@@ -201,7 +202,7 @@ async def main():
     async with Session() as session:
         defaults = [
             {"command_id": command_id, "min_rank": meta[2]}
-            for command_id, meta in RP_COMMANDS.items()
+            for command_id, meta in GAME_COMMANDS.items()
         ]
         await session.execute(
             pg_insert(GameCommandAccess).values(defaults).on_conflict_do_nothing(index_elements=["command_id"])
@@ -213,6 +214,58 @@ async def main():
     dispatcher.message.outer_middleware(RegistrationMiddleware())
     dispatcher.message.outer_middleware(CommandAccessMiddleware())
 
+    @dispatcher.message(F.text.regexp(r"(?i)^дк(?:\s|$)"))
+    async def command_access_handler(message: Message):
+        if not message.from_user or message.from_user.is_bot:
+            return
+        parts = (message.text or "").split()
+        async with Session() as session:
+            actor = await get_user(session, message.from_user.id)
+            if not actor or actor.rank != 5:
+                await message.reply("⛔ Настраивать доступы игровых команд может только владелец (5 ранг).")
+                return
+
+            if len(parts) == 1:
+                rows = (await session.scalars(select(GameCommandAccess))).all()
+                access_map = {row.command_id: row.min_rank for row in rows}
+                lines = [
+                    "🎮 <b>Настройки доступов игровых команд</b>",
+                    "0 — всем; 1–5 — с указанного ранга и выше; 6 — запрещено всем.",
+                ]
+                for command_id, meta in GAME_COMMANDS.items():
+                    value = access_map.get(command_id, meta[2])
+                    lines.append(f"<code>{command_id}</code> — {escape(meta[0])} (<code>{value}</code>)")
+                await message.reply("\n".join(lines), parse_mode="HTML")
+                return
+
+            if not parts[1].isdigit() or int(parts[1]) not in GAME_COMMANDS:
+                await message.reply("Укажи существующий номер игровой команды. Посмотреть список: «дк».")
+                return
+
+            command_id = int(parts[1])
+            setting = await session.get(GameCommandAccess, command_id)
+            current = setting.min_rank if setting else GAME_COMMANDS[command_id][2]
+            if len(parts) == 2:
+                await message.reply(
+                    f"Игровая команда №{command_id} — {GAME_COMMANDS[command_id][0]}. Текущий доступ: {current}."
+                )
+                return
+
+            if len(parts) != 3 or not parts[2].isdigit() or not 0 <= int(parts[2]) <= 6:
+                await message.reply("Формат: дк {номер команды} {доступ от 0 до 6}.")
+                return
+
+            new_access = int(parts[2])
+            if setting is None:
+                session.add(GameCommandAccess(command_id=command_id, min_rank=new_access))
+            else:
+                setting.min_rank = new_access
+            await session.commit()
+
+        await message.reply(
+            f"✅ Доступ игровой команды №{command_id} «{GAME_COMMANDS[command_id][0]}» установлен: {new_access}."
+        )
+
     @dispatcher.message(F.text.regexp(r"(?i)^мдк\s*$"))
     async def my_access_handler(message: Message):
         async with Session() as session:
@@ -223,7 +276,7 @@ async def main():
 
         available = [
             (command_id, meta[0])
-            for command_id, meta in RP_COMMANDS.items()
+            for command_id, meta in GAME_COMMANDS.items()
             if access_map.get(command_id, meta[2]) != 6
             and rank >= access_map.get(command_id, meta[2])
         ]
