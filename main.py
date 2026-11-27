@@ -4,7 +4,7 @@ import logging
 from aiogram import BaseMiddleware, Bot, Dispatcher, F
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message, MessageEntity
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 
 from config import settings
 from database import Base, CommandAccess, Session, User, engine
@@ -123,7 +123,7 @@ async def send_rp_action(message: Message, emoji: str, verb: str):
     if extra and "\n" in extra:
         await message.reply("Дополнительный текст должен быть только на одной строке.")
         return
-    if utf16_length(extra) > 20:
+    if len(extra) > 20:
         await message.reply("Дополнительный текст не должен превышать 20 символов.")
         return
 
@@ -193,6 +193,8 @@ async def main():
 
     async with engine.begin() as connection:
         await connection.run_sync(Base.metadata.create_all)
+        await connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_file_id VARCHAR(255)"))
+        await connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_type VARCHAR(10)"))
 
     async with Session() as session:
         for command_id, (_, _, default_access, _, _) in RP_COMMANDS.items():
