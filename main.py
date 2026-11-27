@@ -5,6 +5,7 @@ from aiogram import BaseMiddleware, Bot, Dispatcher, F
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.types import Message, MessageEntity
 from sqlalchemy import func, select, text
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 
 from config import settings
 from database import Base, CommandAccess, Session, User, engine
@@ -197,10 +198,13 @@ async def main():
         await connection.execute(text("ALTER TABLE users ADD COLUMN IF NOT EXISTS avatar_type VARCHAR(10)"))
 
     async with Session() as session:
-        for command_id, (_, _, default_access, _, _) in RP_COMMANDS.items():
-            setting = await session.get(CommandAccess, command_id)
-            if setting is None:
-                session.add(CommandAccess(command_id=command_id, min_rank=default_access))
+        defaults = [
+            {"command_id": command_id, "min_rank": meta[2]}
+            for command_id, meta in RP_COMMANDS.items()
+        ]
+        await session.execute(
+            pg_insert(CommandAccess).values(defaults).on_conflict_do_nothing(index_elements=["command_id"])
+        )
         await session.commit()
 
     bot = Bot(settings.bot_token)
